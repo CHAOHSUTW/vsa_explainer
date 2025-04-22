@@ -1,10 +1,19 @@
-# setup.py
 from setuptools import setup, find_packages
+import pathlib
+
+# read the README file
+here = pathlib.Path(__file__).parent
+long_description = (here / "README.md").read_text(encoding="utf-8")
 
 setup(
     name="vsa_explainer",
-    version="0.1.0",
+    version="0.1.1",
     description="Visualize and explain RDKit VSA descriptor contributions",
+    
+    long_description=long_description,
+    long_description_content_type="text/markdown",  # tells PyPI to render Markdown
+
+    
     author="Srijit Seal",
     author_email="seal@understanding.bio",
     license="MIT",
