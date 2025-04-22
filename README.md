@@ -27,9 +27,15 @@ smiles = "C1CO[C@@H]1CN2C3=C(C=CC(=C3)C(=O)O)N=C2CN4CCC(CC4)C5=NC(=CC=C5)OCC6=C(
 visualize_vsa_contributions(smiles, ["SMR_VSA7", "EState_VSA5"])
 ```
 
-This will:
-- Draw an SVG of your molecule with atoms colored by their contribution to each selected VSA descriptor.
-- Display a table reporting per-atom values, contributions, and percentage of the total.
+<p align="left">
+  <img src="assets/output_one" alt="vsa_explainer output 1" width="200"/>
+</p>
+<p align="left">
+  <img src="assets/output_two.png" alt="vsa_explainer output 2" width="200"/>
+</p>
+
+- Draws an SVG of your molecule with atoms colored by their contribution to each selected VSA descriptor.
+- Displays a table reporting per-atom values, contributions, and percentage of the total.
 
 
 ## 📌 Support
