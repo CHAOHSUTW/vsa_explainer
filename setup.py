@@ -7,7 +7,7 @@ long_description = (here / "README.md").read_text(encoding="utf-8")
 
 setup(
     name="vsa_explainer",
-    version="0.1.2",
+    version="0.1.3",
     description="Visualize and explain RDKit VSA descriptor contributions",
     
     long_description=long_description,
@@ -41,5 +41,5 @@ setup(
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: MIT License",
     ],
-    url='https://github.com/srijitseal/pauc',
+    url='https://github.com/srijitseal/vsa_explainer',
 )
