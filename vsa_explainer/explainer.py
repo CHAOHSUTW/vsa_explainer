@@ -276,7 +276,7 @@ def visualize_vsa_contributions(smiles, highlight_descriptors=None):
 
         # --- normalize & color (green intensity here; switch channels as you like) ---
         norm = {i: c/total for i, c in zip(atoms, contribs)}
-        highlight_colors = {i: (0.0, 1- 2*v/3, 0.0) for i, v in norm.items()}
+        highlight_colors = {i: (0.0, max(0.6, v), 0.0) for i, v in norm.items()}
 
         # --- draw SVG with atom indices ---
         drawer = rdMolDraw2D.MolDraw2DSVG(500, 500)

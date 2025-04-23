@@ -7,4 +7,4 @@ from .explainer import (
     visualize_vsa_contributions,
 )
 
-__version__ = "0.1.0"
+__version__ = "0.1.2"
