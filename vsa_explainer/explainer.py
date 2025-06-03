@@ -3,6 +3,8 @@ from rdkit import Chem
 from rdkit.Chem import rdMolDescriptors, Draw, AllChem, Descriptors
 from rdkit.Chem.Draw import rdMolDraw2D, MolToImage
 from rdkit.Chem.EState import EState, EState_VSA
+from rdkit.Chem.Lipinski import NumHDonors, NumHAcceptors
+from rdkit.Chem.rdPartialCharges import ComputeGasteigerCharges
 import numpy as np
 import re
 from collections import namedtuple
@@ -149,12 +151,6 @@ def load_crippen_data():
     return crippenData
 
 
-import re
-from rdkit.Chem import Descriptors
-
-import re
-from rdkit.Chem import Descriptors
-
 def get_vsa_bin_bounds(descriptor_name):
     """
     Given a descriptor like "SMR_VSA3" or "SlogP_VSA1", parse its __doc__
@@ -206,14 +202,45 @@ def get_bin_bounds(idx, bins):
         return bins[-1], float("inf")
     else:
         raise ValueError(f"Index {idx} out of range for {N}-boundary bins")
-        
+
+def get_peoe_charges(mol):
+    """
+    Compute PEOE (Partial Equalization of Orbital Electronegativity) charges.
+    This uses Gasteiger charges as an approximation since RDKit doesn't have
+    true PEOE charges built-in.
+    """
+    # Make a copy to avoid modifying the original molecule
+    mol_copy = Chem.Mol(mol)
+    
+    # Compute Gasteiger charges (closest approximation to PEOE in RDKit)
+    ComputeGasteigerCharges(mol_copy)
+    
+    # Extract charges
+    charges = []
+    for atom in mol_copy.GetAtoms():
+        charge = atom.GetDoubleProp('_GasteigerCharge')
+        # Handle NaN values that can occur with Gasteiger calculation
+        if np.isnan(charge):
+            charge = 0.0
+        charges.append(charge)
+    
+    return charges
+
+def get_peoe_vsa_bins():
+    """
+    Return the charge bins used for PEOE_VSA descriptors.
+    These are the standard bins used in RDKit for PEOE_VSA calculations.
+    """
+    # Standard PEOE_VSA charge bins (from RDKit source)
+    return [-0.30, -0.25, -0.20, -0.15, -0.10, -0.05, 0.00, 0.05, 0.10, 0.15, 0.20, 0.25, 0.30]
+
 def visualize_vsa_contributions(smiles, highlight_descriptors=None):
     """
     Analyze and visualize VSA descriptor contributions for a molecule,
-    including SMR_VSA, SlogP_VSA, EState_VSA and VSA_EState families.
+    including SMR_VSA, SlogP_VSA, EState_VSA, VSA_EState, and PEOE_VSA families.
     """
     if highlight_descriptors is None:
-        highlight_descriptors = ["SMR_VSA8", "SlogP_VSA8"]
+        highlight_descriptors = ["SMR_VSA8", "SlogP_VSA8", "PEOE_VSA8"]
 
     mol = Chem.MolFromSmiles(smiles)
     if mol is None:
@@ -226,6 +253,7 @@ def visualize_vsa_contributions(smiles, highlight_descriptors=None):
     crippen_contribs = rdMolDescriptors._CalcCrippenContribs(mol)
     vsa_contribs    = list(rdMolDescriptors._CalcLabuteASAContribs(mol)[0])
     estate_indices  = EState.EStateIndices(mol)
+    peoe_charges    = get_peoe_charges(mol)
 
     for desc in highlight_descriptors:
         # --- pick the correct pairing of "values" vs "contributions" and the bin boundaries ---
@@ -259,6 +287,15 @@ def visualize_vsa_contributions(smiles, highlight_descriptors=None):
             values       = vsa_contribs
             contributions = estate_indices
 
+        elif desc.startswith("PEOE_VSA"):
+            # PEOE_VSA*: sum VSA over PEOE charge bins
+            idx = int(desc.split("PEOE_VSA")[1]) # descriptors start from 1
+            bins = get_peoe_vsa_bins()
+            lower, upper = get_bin_bounds(idx, bins)
+            
+            values       = peoe_charges
+            contributions = vsa_contribs
+
         else:
             print(f"Unknown descriptor '{desc}', skipping.")
             continue
@@ -271,12 +308,12 @@ def visualize_vsa_contributions(smiles, highlight_descriptors=None):
                 contribs.append(contrib)
         total = sum(contribs)
         if not atoms:
-            print(f"\nNo atoms contribute to {desc} (range {lower} to {upper}).")
+            print(f"\nNo atoms contribute to {desc} (range {lower:.4f} to {upper:.4f}).")
             continue
 
         # --- normalize & color (green intensity here; switch channels as you like) ---
         norm = {i: c/total for i, c in zip(atoms, contribs)}
-        highlight_colors = {i: (0.0, max(0.6, v), 0.0) for i, v in norm.items()}
+        highlight_colors = {i: (0.0, 0.7, 0.0) for i, v in norm.items()}
 
         # --- draw SVG with atom indices ---
         drawer = rdMolDraw2D.MolDraw2DSVG(500, 500)
@@ -290,10 +327,11 @@ def visualize_vsa_contributions(smiles, highlight_descriptors=None):
         display(SVG(drawer.GetDrawingText()))
 
         # --- print contribution table ---
+        descriptor_type = "Charge" if desc.startswith("PEOE_VSA") else "Value"
         print(f"\n### {desc} Contributions — Total: {total:.4f}")
         print(f"Bin range: {lower:.4f} to {upper:.4f}")
-        print(f"{'Idx':<4s}{'Sym':<4s}{'Value':>8s}{'Contrib':>12s}{'% of total':>12s}")
-        print("-"* 40)
+        print(f"{'Idx':<4s}{'Sym':<4s}{descriptor_type:>8s}{'Contrib':>12s}{'% of total':>12s}")
+        print("-"* 44)
         for i in atoms:
             sym   = mol.GetAtomWithIdx(i).GetSymbol()
             val   = values[i]

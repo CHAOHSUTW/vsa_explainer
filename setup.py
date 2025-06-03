@@ -7,7 +7,7 @@ long_description = (here / "README.md").read_text(encoding="utf-8")
 
 setup(
     name="vsa_explainer",
-    version="0.1.3",
+    version="0.2.0",
     description="Visualize and explain RDKit VSA descriptor contributions",
     
     long_description=long_description,

@@ -2,7 +2,7 @@
   <img src="assets/logo.png" alt="vsa_explainer Logo" width="200"/>
 </p>
 <h3 align="center">
-vsa_explainer: A simple Python package to visualize and explain RDKit SlogP_VSA, SMR_VSA, EState_VSA, VSA_EState descriptor and atomic contributions
+vsa_explainer: A simple Python package to visualize and explain RDKit SlogP_VSA, SMR_VSA, PEOE_VSA, EState_VSA, VSA_EState descriptor and atomic contributions
 </h3>
 <br/>
 
@@ -46,11 +46,15 @@ visualize_vsa_contributions(smiles, ["SMR_VSA7", "EState_VSA5"])
 - **SlogP_VSA**  
   MOE-type descriptors using LogP contributions and surface area contributions
 
+- **PEOE_VSA**  
+  MOE-type descriptors using partial charges and surface area contributions
+
 - **EState_VSA**  
   MOE-type descriptors using EState indices and surface area contributions (developed at RD, not described in the CCG paper)
 
-- **VSA_EState)**  
+- **VSA_EState**  
   MOE-type descriptors using EState indices and surface area contributions (developed at RD, not described in the CCG paper)
+
 
 
 ## 📌 Contributing
