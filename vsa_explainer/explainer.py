@@ -7,6 +7,8 @@ from rdkit.Chem.Lipinski import NumHDonors, NumHAcceptors
 from rdkit.Chem.rdPartialCharges import ComputeGasteigerCharges
 import numpy as np
 import re
+import os
+import csv
 from collections import namedtuple
 from IPython.display import SVG, display
 
@@ -338,3 +340,115 @@ def visualize_vsa_contributions(smiles, highlight_descriptors=None):
             cst   = contributions[i]
             pct   = 100*cst/total if total else 0
             print(f"{i:<4d}{sym:<4s}{val:8.3f}{cst:12.3f}{pct:12.1f}%")
+
+# 輔助函數：輸出 PNG
+def save_molecule_png(mol, atoms=None, atom_colors=None, filename='mol.png', dpi=300, size=(500, 500)):
+    width, height = size
+    scale = dpi / 96  # 96 是 RDKit 預設 DPI
+    width = int(width * scale)
+    height = int(height * scale)
+
+    drawer = rdMolDraw2D.MolDraw2DCairo(width, height)
+    drawer.drawOptions().addAtomIndices = True
+    rdMolDraw2D.PrepareAndDrawMolecule(
+        drawer, mol,
+        highlightAtoms=atoms,
+        highlightAtomColors=atom_colors
+    )
+    drawer.FinishDrawing()
+    drawer.WriteDrawingText(filename)
+    print(f"[PNG saved] {filename} ({dpi} dpi)")
+
+# 主要函數（假設你已有以下函數：get_vsa_bin_bounds、get_bin_bounds、get_peoe_charges、get_peoe_vsa_bins）
+def visualize_vsa_contributions2(smiles, highlight_descriptors=None, output_dir='vsa_output'):
+    if highlight_descriptors is None:
+        highlight_descriptors = ["SMR_VSA8", "SlogP_VSA8", "PEOE_VSA8"]
+
+    os.makedirs(output_dir, exist_ok=True)
+    mol = Chem.MolFromSmiles(smiles)
+    if mol is None:
+        print(f"Error: Could not parse SMILES '{smiles}'")
+        return
+    if not mol.GetNumConformers():
+        AllChem.Compute2DCoords(mol)
+
+    crippen_contribs = rdMolDescriptors._CalcCrippenContribs(mol)
+    vsa_contribs    = list(rdMolDescriptors._CalcLabuteASAContribs(mol)[0])
+    estate_indices  = EState.EStateIndices(mol)
+    peoe_charges    = get_peoe_charges(mol)
+
+    for desc in highlight_descriptors:
+        if desc.startswith("SMR_VSA") or desc.startswith("SlogP_VSA"):
+            try:
+                lower, upper = get_vsa_bin_bounds(desc)
+            except ValueError as e:
+                print(e)
+                continue
+            prop_idx   = 1 if desc.startswith("SMR") else 0
+            values     = [c[prop_idx] for c in crippen_contribs]
+            contributions = vsa_contribs
+
+        elif desc.startswith("EState_VSA"):
+            idx = int(desc.split("EState_VSA")[1])
+            bins = EState_VSA.estateBins
+            lower, upper = get_bin_bounds(idx, bins)
+            values       = estate_indices
+            contributions = vsa_contribs
+
+        elif desc.startswith("VSA_EState"):
+            idx = int(desc.split("VSA_EState")[1])
+            bins = EState_VSA.vsaBins
+            lower, upper = get_bin_bounds(idx, bins)
+            values       = vsa_contribs
+            contributions = estate_indices
+
+        elif desc.startswith("PEOE_VSA"):
+            idx = int(desc.split("PEOE_VSA")[1])
+            bins = get_peoe_vsa_bins()
+            lower, upper = get_bin_bounds(idx, bins)
+            values       = peoe_charges
+            contributions = vsa_contribs
+
+        else:
+            print(f"Unknown descriptor '{desc}', skipping.")
+            continue
+
+        # 取出落入指定 bin 的原子
+        atoms, contribs = [], []
+        for i, (val, contrib) in enumerate(zip(values, contributions)):
+            if lower <= val < upper:
+                atoms.append(i)
+                contribs.append(contrib)
+        total = sum(contribs)
+        if not atoms:
+            print(f"\nNo atoms contribute to {desc} (range {lower:.4f} to {upper:.4f}).")
+            continue
+
+        # 設定 highlight 顏色
+        highlight_colors = {i: (0.0, 0.7, 0.0) for i in atoms}
+
+        # --- 儲存 PNG 圖 ---
+        png_path = os.path.join(output_dir, f"{desc}.png")
+        save_molecule_png(mol, atoms, highlight_colors, filename=png_path, dpi=300)
+
+        # --- 同時也產生 SVG 顯示（Jupyter 可視化用） ---
+        drawer = rdMolDraw2D.MolDraw2DSVG(500, 500)
+        drawer.drawOptions().addAtomIndices = True
+        rdMolDraw2D.PrepareAndDrawMolecule(drawer, mol, highlightAtoms=atoms, highlightAtomColors=highlight_colors)
+        drawer.FinishDrawing()
+        svg = drawer.GetDrawingText()
+        display(SVG(svg))
+
+        # --- 儲存 CSV 貢獻表 ---
+        csv_path = os.path.join(output_dir, f"{desc}_contributions.csv")
+        descriptor_type = "Charge" if desc.startswith("PEOE_VSA") else "Value"
+        with open(csv_path, "w", newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow(["Idx", "Symbol", descriptor_type, "Contribution", "% of Total"])
+            for i in atoms:
+                sym = mol.GetAtomWithIdx(i).GetSymbol()
+                val = values[i]
+                cst = contributions[i]
+                pct = 100 * cst / total if total else 0
+                writer.writerow([i, sym, f"{val:.3f}", f"{cst:.3f}", f"{pct:.1f}%"])
+        print(f"[CSV saved] {csv_path}")
